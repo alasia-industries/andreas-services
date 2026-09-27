@@ -67,3 +67,17 @@ variable "linkedin_client_secret" {
   default   = ""
   sensitive = true
 }
+
+# Where the dev Claude client may return a code. Claude's hosted surfaces
+# (claude.ai, claude.com) and Claude Code's local OAuth listener, which
+# Cognito matches exactly — so Claude Code's OAuth callback must be pinned to
+# this port when the connector is added.
+variable "mcp_claude_callback_urls" {
+  description = "Exact OAuth callback URLs for the dev pool's Claude MCP client"
+  type        = list(string)
+  default = [
+    "https://claude.ai/api/mcp/auth_callback",
+    "https://claude.com/api/mcp/auth_callback",
+    "http://localhost:33418/callback",
+  ]
+}

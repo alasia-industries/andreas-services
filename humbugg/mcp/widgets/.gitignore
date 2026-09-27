@@ -1,0 +1,5 @@
+node_modules/
+e2e/.host/
+e2e/screenshots/
+test-results/
+playwright-report/

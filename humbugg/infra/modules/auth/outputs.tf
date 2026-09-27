@@ -40,3 +40,8 @@ output "identity_providers" {
   description = "Social providers enabled on this stack, in button order"
   value       = local.identity_provider_names
 }
+
+output "mcp_client_ids" {
+  description = "MCP host name => its Cognito app client id"
+  value       = { for host, client in aws_cognito_user_pool_client.mcp : host => client.id }
+}

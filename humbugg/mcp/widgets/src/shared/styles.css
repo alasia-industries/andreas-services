@@ -1,0 +1,83 @@
+/* Open Sans is Humbugg's one text face (marketing loads it from Google Fonts;
+   a page here may load nothing from outside, so the files are inlined). */
+@import "@fontsource/open-sans/latin-400.css";
+@import "@fontsource/open-sans/latin-600.css";
+@import "@fontsource/open-sans/latin-700.css";
+@import "tailwindcss";
+@import "@ansavva/design-system/theme.css";
+
+/* The design system publishes source; let Tailwind see its class strings. */
+@source "../../node_modules/@ansavva/design-system";
+/* The shared components live beside this file, outside each page's root. */
+@source "..";
+
+/* Humbugg's brand over the design system's base theme — the same roles and
+ * values as `humbugg/marketing/src/styles.css` (and, in points,
+ * `humbugg/app/src/theme/`). Keep the three in step by hand. */
+@theme {
+  --color-ink: #18332b;
+  --color-muted: #626e67;
+  --color-line: #ddd6c5;
+  --color-bg: #fbf8ef;
+  --color-card: #fffdf8;
+  --color-surface-alt: #f1ecdf;
+  --color-frame: #173f35;
+  --color-frame-text: #fffdf8;
+  --color-accent: #966a24;
+  --color-accent-hover: #835c1f;
+  --color-brand: #1d5545;
+  --color-primary: #1d5545;
+  --color-primary-hover: #17483a;
+  --color-primary-active: #113b30;
+  --color-primary-text: #fffdf8;
+  --radius-xs: 0.25rem;
+  --radius-sm: 0.375rem;
+  --radius-md: 0.625rem;
+  --radius-lg: 0.875rem;
+  --font-heading: "Open Sans", ui-sans-serif, system-ui, sans-serif;
+  --font-body: "Open Sans", ui-sans-serif, system-ui, sans-serif;
+}
+
+/* Dark: `data-theme`, the only switch the web leaves read. The page sets it
+ * from the host's theme (or the OS, before the host says). */
+[data-theme='dark'] {
+  --color-ink: #f2ece0;
+  --color-muted: #8b9d93;
+  --color-line: #2b463d;
+  --color-bg: #0e1f1a;
+  --color-card: #142a24;
+  --color-surface-alt: #1b352d;
+  --color-frame: #1b3a31;
+  --color-frame-text: #f2ece0;
+  --color-accent: #c9993f;
+  --color-accent-hover: #dcac52;
+  --color-brand: #7fd0a6;
+  --color-primary: #7fd0a6;
+  --color-primary-hover: #93dab5;
+  --color-primary-active: #a9e4c5;
+  --color-primary-text: #0c1f18;
+}
+
+/* A page lives in the host's iframe, which is sized to the content: no page
+   chrome, no minimum height. */
+html,
+body,
+#root {
+  min-height: 0;
+}
+
+body {
+  margin: 0;
+  padding: 12px;
+  font-family: var(--font-body);
+  background: var(--color-bg);
+  color: var(--color-ink);
+  overflow-wrap: anywhere;
+}
+
+button,
+input,
+textarea,
+select {
+  font: inherit;
+}

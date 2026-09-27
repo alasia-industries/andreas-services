@@ -57,6 +57,8 @@ internal static class HostedApiEnvironment
     public const string Region = "us-east-1";
     public const string UserPoolId = "us-east-1_testpool";
     public const string ClientId = "humbugg-test-client";
+    /// <summary>An MCP host's client, accepted through <c>COGNITO_ADDITIONAL_CLIENT_IDS</c>.</summary>
+    public const string McpClientId = "humbugg-test-mcp-client";
 
     private static readonly string[] RequiredTables =
     [
@@ -84,6 +86,7 @@ internal static class HostedApiEnvironment
         Environment.SetEnvironmentVariable("COGNITO_REGION", Region);
         Environment.SetEnvironmentVariable("COGNITO_USER_POOL_ID", UserPoolId);
         Environment.SetEnvironmentVariable("COGNITO_CLIENT_ID", ClientId);
+        Environment.SetEnvironmentVariable("COGNITO_ADDITIONAL_CLIENT_IDS", $" {McpClientId} ,");
 
         // Each of these switches Program.cs onto a code path that builds an AWS client or a startup
         // hosted service. Cleared so an ambient export cannot drag the unit suite towards a network.

@@ -30,6 +30,13 @@ data "aws_ssm_parameter" "cognito_auth_domain" {
   name = "/humbugg/dev/cognito-auth-domain"
 }
 
+# MCP host => client id (JSON). No MCP Lambda runs in a dev stack — the backend
+# runs in Docker with no gateway in front of it — so this is read only to hand
+# the ids to dev.env: the local backend's allow-list and the local MCP server.
+data "aws_ssm_parameter" "cognito_mcp_client_ids" {
+  name = "/humbugg/dev/cognito-mcp-client-ids"
+}
+
 module "storage" {
   source = "../../modules/dev_storage"
 

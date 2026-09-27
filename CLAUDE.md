@@ -153,7 +153,7 @@ names.
 |---|---|---|---|
 | `classroom/` | 8001 | 5174 | |
 | `website/` | 8002 | 5175 | prod build served on 3000 |
-| `humbugg/` | 5001 (Docker), 5050/5051 (`dotnet run`) | marketing 5176 · app (Expo web) 8081 | app stubbed e2e 4174 · Mailpit 8025 |
+| `humbugg/` | 5001 (Docker), 5050/5051 (`dotnet run`) | marketing 5176 · app (Expo web) 8081 | app stubbed e2e 4174 · Mailpit 8025 · MCP 5002 |
 
 Vite is `strictPort` everywhere: a silent hop to the next free port lands on
 one the service's Cognito pool has no callback for, and the sign-in fails a

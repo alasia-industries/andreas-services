@@ -1,0 +1,32 @@
+# Expected failures for `npx @modelcontextprotocol/conformance server` (0.1.16) against
+# humbugg_mcp.testing:app. Every scenario below calls a fixture of the suite's reference
+# server — tools named test_image_content, test_logging_tool, test_sampling…, the prompts
+# test_simple_prompt…, resources under test://, completion, logging/setLevel and resource
+# subscriptions — none of which Humbugg offers or should. What Humbugg does offer passes:
+# initialize, ping, tools/list, tools/call and its errors, resources/list, prompts/list,
+# DNS-rebinding protection. server-sse-multiple-streams runs no check against a stateless
+# JSON-response server (it has no GET stream to open), which the baseline mode counts as a
+# failure. A NEW failure outside this list fails the PR.
+server:
+  - logging-set-level
+  - completion-complete
+  - tools-call-image
+  - tools-call-audio
+  - tools-call-embedded-resource
+  - tools-call-mixed-content
+  - tools-call-with-logging
+  - tools-call-with-progress
+  - tools-call-sampling
+  - tools-call-elicitation
+  - elicitation-sep1034-defaults
+  - elicitation-sep1330-enums
+  - resources-read-text
+  - resources-read-binary
+  - resources-templates-read
+  - resources-subscribe
+  - resources-unsubscribe
+  - prompts-get-simple
+  - prompts-get-with-args
+  - prompts-get-embedded-resource
+  - prompts-get-with-image
+  - server-sse-multiple-streams

@@ -102,3 +102,18 @@ output "identity_providers" {
   description = "Social providers enabled on the pool, in button order"
   value       = module.auth.identity_providers
 }
+
+output "cognito_mcp_client_ids" {
+  description = "MCP host => its Cognito app client id"
+  value       = module.auth.mcp_client_ids
+}
+
+output "mcp_ecr_repository_url" {
+  description = "MCP server ECR repository URL"
+  value       = module.mcp.ecr_repository_url
+}
+
+output "mcp_lambda_function_name" {
+  description = "MCP server Lambda function name"
+  value       = module.mcp.lambda_function_name
+}

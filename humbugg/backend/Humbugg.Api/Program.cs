@@ -77,7 +77,9 @@ builder.Services.AddAuthentication(JwtBearerDefaults.AuthenticationScheme).AddJw
         {
             var tokenUse = context.Principal?.FindFirst("token_use")?.Value;
             var clientId = context.Principal?.FindFirst("client_id")?.Value;
-            if (tokenUse != "access" || clientId != settings.CognitoClientId)
+            // The app client, or one of the MCP hosts' clients (COGNITO_ADDITIONAL_CLIENT_IDS):
+            // the MCP server calls this API as the signed-in person with its host's token.
+            if (tokenUse != "access" || !settings.AcceptsClientId(clientId))
                 context.Fail("The token is not a valid Humbugg access token.");
             return Task.CompletedTask;
         },
@@ -355,9 +357,22 @@ public sealed record HumbuggSettings(
     // URL and the table holds connections and tickets; unset, the container hosts the sockets
     // itself on /ws and keeps both in memory — the dev stack, and the tests.
     string? RealtimeEndpoint = null,
-    string ChatConnectionsTable = "")
+    string ChatConnectionsTable = "",
+    // Cognito app clients accepted beside CognitoClientId — one per MCP host (humbugg/mcp). The
+    // gateway authorizer's audience lists the same clients (infra/modules/compute); a client in
+    // one list and not the other is refused by whichever lacks it.
+    string[]? CognitoAdditionalClientIds = null)
 {
     public bool RealtimeViaApiGateway => !string.IsNullOrWhiteSpace(RealtimeEndpoint);
+
+    /// <summary>
+    /// Whether an access token's <c>client_id</c> is one this API serves: the app client or an
+    /// MCP host's. Exact, ordinal match; a missing claim is never accepted.
+    /// </summary>
+    public bool AcceptsClientId(string? clientId) =>
+        !string.IsNullOrEmpty(clientId)
+        && (string.Equals(clientId, CognitoClientId, StringComparison.Ordinal)
+            || (CognitoAdditionalClientIds ?? []).Contains(clientId, StringComparer.Ordinal));
 
     public static HumbuggSettings FromEnvironment()
     {
@@ -394,8 +409,16 @@ public sealed record HumbuggSettings(
             RequiredTable("HUMBUGG_TEMPLATES_TABLE"),
             RequiredTable("HUMBUGG_QUESTIONS_TABLE"),
             Environment.GetEnvironmentVariable("HUMBUGG_REALTIME_ENDPOINT")?.TrimEnd('/'),
-            Environment.GetEnvironmentVariable("HUMBUGG_CHAT_CONNECTIONS_TABLE") ?? "");
+            Environment.GetEnvironmentVariable("HUMBUGG_CHAT_CONNECTIONS_TABLE") ?? "",
+            ParseClientIds(Environment.GetEnvironmentVariable("COGNITO_ADDITIONAL_CLIENT_IDS")));
     }
+
+    // Comma-separated, like CORS_ORIGINS, because Lambda env vars are flat strings. Unset or blank
+    // is no additional client: the app client alone, which is what every stack had before MCP.
+    internal static string[] ParseClientIds(string? value) =>
+        string.IsNullOrWhiteSpace(value)
+            ? []
+            : value.Split(',', StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries);
 
     // Table names are per-environment and carry no safe default: prod, each
     // developer's isolated dev stack, and any future environment all name them

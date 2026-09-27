@@ -12,6 +12,21 @@ locals {
   # deploy workflow passes to Vite.
   app_base_url = "https://app.${local.domain_name}"
 
+  # One Cognito app client per MCP host (modules/auth/mcp_clients.tf). Claude's
+  # hosted surfaces finish OAuth at these two, matched exactly. `smoke` is the
+  # post-deploy smoke test's password-only client: a token the MCP server
+  # accepts, from an account that holds nothing (docs/TESTING.md rule 9).
+  mcp_clients = {
+    claude = {
+      oauth         = true
+      callback_urls = ["https://claude.ai/api/mcp/auth_callback", "https://claude.com/api/mcp/auth_callback"]
+    }
+    smoke = {
+      oauth         = false
+      callback_urls = []
+    }
+  }
+
   common_tags = {
     Project     = local.project
     Environment = local.environment
@@ -67,6 +82,8 @@ module "auth" {
   linkedin_client_id     = var.linkedin_client_id
   linkedin_client_secret = var.linkedin_client_secret
 
+  mcp_clients = local.mcp_clients
+
   tags = local.common_tags
 }
 
@@ -97,6 +114,10 @@ module "compute" {
   cognito_user_pool_id    = module.auth.user_pool_id
   cognito_user_pool_arn   = module.auth.user_pool_arn
   cognito_client_id       = module.auth.user_pool_client_id
+  # Every MCP host's client, so the tokens the MCP server passes on reach the
+  # application. Program.cs's allow-list is the other half; the deploy
+  # workflow sets it from the same SSM parameter as the MCP Lambda's clients.
+  cognito_additional_client_ids = values(module.auth.mcp_client_ids)
 
   api_throttling_rate_limit  = var.api_throttling_rate_limit
   api_throttling_burst_limit = var.api_throttling_burst_limit
@@ -210,6 +231,51 @@ resource "aws_ssm_parameter" "api_domain" {
   description = "Public base URL of the backend API on its own domain"
   type        = "String"
   value       = module.api_domain.api_base_url
+
+  tags = local.common_tags
+}
+
+# The MCP connector at https://api.humbugg.com/mcp — routes on the same HTTP API
+# as /api/*, so the connector, its OAuth metadata and the API share an origin.
+module "mcp" {
+  source = "../../modules/mcp"
+
+  project     = local.project
+  environment = local.environment
+
+  api_id            = module.compute.api_id
+  api_execution_arn = module.compute.api_execution_arn
+
+  public_url           = module.api_domain.api_base_url
+  api_url              = module.api_domain.api_base_url
+  cognito_domain       = module.auth.auth_domain
+  cognito_user_pool_id = module.auth.user_pool_id
+  mcp_clients_json     = local.mcp_clients_json
+
+  tags = local.common_tags
+}
+
+locals {
+  # HUMBUGG_MCP_CLIENTS, the server's contract: host => {client_id, redirect_uris}.
+  # The server's dynamic registration answers a redirect with the client whose
+  # list contains it, so these are the same lists Cognito was given.
+  mcp_clients_json = jsonencode({
+    for host, id in module.auth.mcp_client_ids : host => {
+      client_id     = id
+      redirect_uris = local.mcp_clients[host].callback_urls
+    }
+  })
+}
+
+# Terraform knows the value, so Terraform publishes it. The deploy workflow
+# reads it for three things: the MCP Lambda's HUMBUGG_MCP_CLIENTS, the API's
+# COGNITO_ADDITIONAL_CLIENT_IDS (every client_id in it), and the smoke test's
+# client (`.smoke.client_id`).
+resource "aws_ssm_parameter" "mcp_clients" {
+  name        = "/humbugg/prod/mcp-clients"
+  description = "MCP host => Cognito client id and redirect URIs (JSON)"
+  type        = "String"
+  value       = local.mcp_clients_json
 
   tags = local.common_tags
 }
@@ -357,6 +423,13 @@ module "alerting" {
     "realtime-connections" = {
       function_name   = module.realtime.connections_lambda_function_name
       error_threshold = 3
+    }
+    # Throttles alarm too: reserved concurrency caps this function, and a
+    # connector throttled at its ceiling is a user-facing refusal.
+    mcp = {
+      function_name   = module.mcp.lambda_function_name
+      error_threshold = 3
+      throttle_alarm  = true
     }
   }
 

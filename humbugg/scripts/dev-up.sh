@@ -1,7 +1,8 @@
 #!/usr/bin/env bash
 # Start the backend (with the Stripe webhook consumer beside it, both from
-# backend/docker-compose.yml) and both frontends as one local development
-# session: marketing site on :5176, product app on :8081.
+# backend/docker-compose.yml), both frontends and the MCP connector as one
+# local development session: marketing site on :5176, product app on :8081,
+# MCP on :5002 (skipped, with a warning, when uv is not installed).
 set -euo pipefail
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
@@ -70,6 +71,11 @@ start_service backend "$SCRIPT_DIR/dev-up-backend.sh" \
   --profile "$AWS_PROFILE_VALUE" --region "$AWS_REGION_VALUE"
 start_service web "$SCRIPT_DIR/dev-up-marketing.sh"
 start_service app "$SCRIPT_DIR/dev-up-app.sh"
+if command -v uv >/dev/null 2>&1; then
+  start_service mcp "$SCRIPT_DIR/dev-up-mcp.sh"
+else
+  warn "uv is not installed; skipping the MCP connector (humbugg/mcp). brew install uv to include it."
+fi
 
 ok "Humbugg local development is starting. Press Ctrl+C to stop everything."
 

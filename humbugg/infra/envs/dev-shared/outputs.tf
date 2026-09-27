@@ -18,3 +18,7 @@ output "idp_response_url" {
 output "identity_providers" {
   value = module.auth.identity_providers
 }
+
+output "cognito_mcp_client_ids" {
+  value = module.auth.mcp_client_ids
+}

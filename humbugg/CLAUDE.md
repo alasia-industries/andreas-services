@@ -14,6 +14,7 @@ Humbugg is a gift-exchange platform, served from three hostnames:
 | Marketing | `www.humbugg.com` | React Router v7 SSR. The apex 308s to it. |
 | Product app | `app.humbugg.com` | Expo + Expo Router, deployed as a static web export. The same codebase builds iOS/Android later. |
 | API | `api.humbugg.com` | ASP.NET Core Lambda behind an API Gateway custom domain. |
+| MCP connector | `api.humbugg.com/mcp` | Python MCP server on its own Lambda, same gateway: a member's exchanges as tools for Claude. [`mcp/README.md`](mcp/README.md) |
 
 What it does:
 
@@ -50,8 +51,9 @@ humbugg/
 │   ├── app/                     # file-based routes
 │   ├── src/                     # api client, contexts, theme
 │   └── app.json
+├── mcp/                        # MCP connector — Python, calls the API as the signed-in person; widgets/ are its pages
 ├── infra/                      # Terraform
-│   ├── modules/                # auth, compute, hosting, storage, webhook_relay (dev only)
+│   ├── modules/                # auth, compute, hosting, storage, mcp, webhook_relay (dev only)
 │   ├── envs/prod/              # Lambda + API Gateway + Cognito, S3 + CloudFront + Route53 alias
 │   ├── envs/dev-shared/        # the one shared dev resource: the Cognito pool
 │   └── envs/dev/               # per-machine: tables, bucket, Stripe webhook relay
@@ -170,9 +172,11 @@ All commands run from the repository root:
 | `scripts/dev-setup.sh` | Idempotently install shared tooling; use `--check` for a read-only prerequisite audit |
 | `humbugg/scripts/dev-setup.sh` | Canonical dependency chain: shared setup → .NET 10 → per-machine AWS setup; accepts `--profile`, `--region`, `--yes`, `--check` |
 | `humbugg/scripts/dev-aws-setup.sh` | Lower-level AWS provision/check command called by canonical setup; applies the shared pool stack then this machine's; accepts `--profile`, `--region`, `--yes`, `--check`, `--skip-shared`, `--allow-provider-removal` |
-| `humbugg/scripts/dev-up.sh` | Preferred full local startup — backend + webhook consumer, both frontends; accepts `--profile`, `--region` |
+| `humbugg/scripts/dev-up.sh` | Preferred full local startup — backend + webhook consumer, both frontends, the MCP connector; accepts `--profile`, `--region` |
 | `humbugg/scripts/dev-up-backend.sh` | Backend startup — the API and the Stripe webhook consumer, two services of one Compose project; exports temporary AWS credentials into Docker Compose without writing them to disk |
 | `humbugg/scripts/dev-up-marketing.sh` | Marketing-site-only startup; exports `VITE_*` from `dev.env` and checks installed dependencies first |
+| `humbugg/scripts/dev-up-mcp.sh` | MCP connector on :5002 against the local backend, signed in as a seeded person (`--as EMAIL`; `--stub` for the in-memory API). Builds the pages when stale; auth off, loopback only. For the Inspector and Claude Code; **pages render only in the desktop app**, from a stdio entry in its config (`python -m humbugg_mcp.dev`) — `mcp/README.md` |
+| `humbugg/scripts/dev-test-mcp.sh` | The MCP integration tier against the running backend: draws a throwaway exchange through the tools and checks nobody can learn their giver |
 | `humbugg/scripts/dev-up-app.sh` | Product-app-only startup; exports `EXPO_PUBLIC_*` from `dev.env`; defaults to `--web`, pass `--ios`/`--android` for a simulator |
 | `humbugg/scripts/dev-logs-backend.sh` | Follow the backend container logs; accepts Docker Compose log options such as `--tail 200` |
 | `humbugg/scripts/dev-user.sh` | Create or converge the one dev-stack account `HUMBUGG_DEV_USER_EMAIL` names; `--generate-password` for a non-interactive run, `--check` to report without changing. The address should be one of the people in `seeds/dev.json` |
@@ -265,6 +269,8 @@ The short version:
 | App browser live (dev stack) | local only | `E2E_LIVE=1` |
 | Marketing unit (vitest/jsdom) | every PR | — |
 | Prod smoke (`humbugg-prod.yaml` post-deploy) | after deploy | detector, not a gate |
+| MCP unit, OAuth shim, pages, conformance, Specmatic (`mcp/`) | every PR | — |
+| MCP integration (`mcp/tests/test_integration.py`, dev backend) | local only | `HUMBUGG_INTEGRATION=1` |
 
 Coverage is printed on every PR and gates on nothing, deliberately — the
 reasoning is in the map.
@@ -285,6 +291,7 @@ All secrets/values live in the `humbugg-production` GitHub Actions environment. 
 | `/humbugg/prod/ecr-url` | Backend ECR repo URL |
 | `/humbugg/prod/cognito-user-pool-id` | Cognito pool ID |
 | `/humbugg/prod/cognito-client-id` | Cognito app-client ID |
+| `/humbugg/prod/mcp-clients` | MCP host → `{client_id, redirect_uris}` JSON (Terraform-owned). The MCP Lambda takes it as `HUMBUGG_MCP_CLIENTS`; the API takes its client ids as `COGNITO_ADDITIONAL_CLIENT_IDS` |
 | `/humbugg/prod/cognito-auth-domain` | Managed Login host (`auth.humbugg.com`); inlined into the app export as `EXPO_PUBLIC_COGNITO_DOMAIN` |
 | `/humbugg/prod/s3-bucket` | Frontend S3 bucket |
 | `/humbugg/prod/cf-dist-id` | CloudFront distribution ID |

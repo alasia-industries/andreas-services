@@ -1,0 +1,66 @@
+{
+  "group": {
+    "group_id": "grp_office_2026",
+    "name": "Office Secret Santa",
+    "event_date": "2026-12-18",
+    "spending_limit": 30,
+    "currency": "USD"
+  },
+  "recipient": {
+    "display_name": "Cai Lindqvist",
+    "wishlist": "Anything green.\nI like cooking and long walks.",
+    "avoidances": "No candles, no novelty mugs.",
+    "wishes": [
+      {
+        "wish_id": "wsh_1",
+        "kind": "product",
+        "title": "Wool scarf, forest green",
+        "url": "https://shop.example.com/scarf?ref=1",
+        "image_url": "https://images.example.com/scarf.jpg",
+        "price_cents": 2800,
+        "currency": "USD",
+        "quantity": 1,
+        "priority": "high",
+        "details": "Not itchy please \u2014 merino or cashmere blend.",
+        "claim": {
+          "state": "planned",
+          "quantity": 1
+        }
+      },
+      {
+        "wish_id": "wsh_2",
+        "kind": "product",
+        "title": "<img src=x onerror=alert(1)>",
+        "url": "javascript:alert(2)",
+        "image_url": "http://insecure.example.com/x.png",
+        "price_cents": null,
+        "currency": null,
+        "quantity": 1,
+        "priority": "normal",
+        "details": "**not markdown** <b>not html</b>",
+        "claim": null
+      },
+      {
+        "wish_id": "wsh_3",
+        "kind": "experience",
+        "title": "Pottery class",
+        "url": null,
+        "image_url": null,
+        "price_cents": 4500,
+        "currency": "USD",
+        "quantity": 1,
+        "priority": "low",
+        "details": null,
+        "claim": {
+          "state": "purchased",
+          "quantity": 1
+        }
+      }
+    ]
+  },
+  "gift": {
+    "stage": "choosing",
+    "received": false,
+    "can_change_stage": true
+  }
+}

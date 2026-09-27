@@ -65,6 +65,21 @@ module "auth" {
   linkedin_client_id     = var.linkedin_client_id
   linkedin_client_secret = var.linkedin_client_secret
 
+  # The MCP hosts' clients live on the shared pool too, for the same reason
+  # the pool does: one set of callback URLs, registered once. `smoke` is the
+  # password-only client the local MCP integration tier signs seeded people in
+  # through — a token the MCP server accepts, which the app client's is not.
+  mcp_clients = {
+    claude = {
+      oauth         = true
+      callback_urls = var.mcp_claude_callback_urls
+    }
+    smoke = {
+      oauth         = false
+      callback_urls = []
+    }
+  }
+
   tags = local.common_tags
 }
 
@@ -90,5 +105,14 @@ resource "aws_ssm_parameter" "auth_domain" {
   name  = "/${local.project}/${local.environment}/cognito-auth-domain"
   type  = "String"
   value = module.auth.auth_domain
+  tags  = local.common_tags
+}
+
+# MCP host => client id, as one JSON document so a host added to the map above
+# reaches every machine without a new parameter or a new data source.
+resource "aws_ssm_parameter" "mcp_client_ids" {
+  name  = "/${local.project}/${local.environment}/cognito-mcp-client-ids"
+  type  = "String"
+  value = jsonencode(module.auth.mcp_client_ids)
   tags  = local.common_tags
 }

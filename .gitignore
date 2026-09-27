@@ -218,6 +218,7 @@ package-lock.json
 !humbugg/frontend/package-lock.json
 !humbugg/app/package-lock.json
 !humbugg/scripts/package-lock.json
+!humbugg/mcp/widgets/package-lock.json
 !design-system/package-lock.json
 !website/frontend/package-lock.json
 !classroom/frontend/package-lock.json
