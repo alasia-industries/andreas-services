@@ -424,7 +424,11 @@ jobs:
             --url "${MCP_URL}" \
             --transport-kind=STREAMABLE_HTTP \
             --dictionary-file specmatic-dictionary.json \
-            --enable-resiliency-tests
+            --enable-resiliency-tests \
+            > "${RUNNER_TEMP}/specmatic/run.log" 2>&1 \
+            || { tail -n 60 "${RUNNER_TEMP}/specmatic/run.log"; exit 1; }
+          # Its per-case output (~30k cases) goes to run.log, uploaded below: inline it
+          # overran GitHub's log view and hid the gate's summary.
           # Specmatic exits 0 whatever its verdicts; this is the gate.
           python3 humbugg/mcp/tests/specmatic_check.py "${RUNNER_TEMP}/specmatic/mcp/mcp_test_report.json"
 
