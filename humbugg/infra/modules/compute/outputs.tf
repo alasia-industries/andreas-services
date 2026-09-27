@@ -62,3 +62,8 @@ output "api_role_name" {
   description = "Name of the same role, for an inline grant declared outside this module."
   value       = aws_iam_role.api.name
 }
+
+output "api_execution_arn" {
+  description = "Backend HTTP API execution ARN, for another Lambda's invoke permission on it"
+  value       = aws_apigatewayv2_api.api.execution_arn
+}

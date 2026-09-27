@@ -486,8 +486,14 @@ resource "aws_apigatewayv2_authorizer" "cognito" {
   identity_sources = ["$request.header.Authorization"]
   name             = "${var.project}-${var.environment}-cognito"
 
+  # For an access token the authorizer matches `client_id` against this list.
+  # The app client plus every MCP host's client: the MCP server calls /api/* as
+  # the signed-in person with the token its host holds, so a client missing
+  # here is the gateway's bare {"message":"Unauthorized"} on every tool call.
+  # Program.cs keeps its own allow-list (COGNITO_ADDITIONAL_CLIENT_IDS); the
+  # two must name the same clients.
   jwt_configuration {
-    audience = [var.cognito_client_id]
+    audience = concat([var.cognito_client_id], var.cognito_additional_client_ids)
     issuer   = "https://cognito-idp.us-east-1.amazonaws.com/${var.cognito_user_pool_id}"
   }
 }

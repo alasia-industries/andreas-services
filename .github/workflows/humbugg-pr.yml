@@ -285,3 +285,150 @@ jobs:
           name: playwright-traces
           path: humbugg/app/test-results/
           retention-days: 7
+
+  # ---------------------------------------------------------------------------
+  # The MCP connector (humbugg/mcp): unit and auth-shim tests, the MCP Apps
+  # pages, the Lambda image, then protocol conformance, schema portability and
+  # fuzzing against the server running locally. Nothing here reaches AWS, dev
+  # or prod: `humbugg_mcp.testing:app` is the server with auth off and the API
+  # answered from fixtures, which is the ONLY thing Specmatic may point at — it
+  # calls every tool, destructive ones included.
+  # ---------------------------------------------------------------------------
+  mcp:
+    name: MCP Connector
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      packages: read
+    env:
+      MCP_URL: http://127.0.0.1:5002/mcp
+
+    steps:
+      - uses: actions/checkout@v7
+
+      - name: Set up uv
+        uses: astral-sh/setup-uv@v7
+        with:
+          python-version: '3.12'
+          enable-cache: true
+          cache-dependency-glob: humbugg/mcp/uv.lock
+
+      - name: Set up Node.js 24
+        uses: actions/setup-node@v6
+        with:
+          node-version: '24'
+          registry-url: 'https://npm.pkg.github.com'
+          scope: '@ansavva'
+          cache: npm
+          cache-dependency-path: humbugg/mcp/widgets/package-lock.json
+
+      - name: Install widget dependencies
+        env:
+          NODE_AUTH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: cd humbugg/mcp/widgets && npm ci
+
+      # Writes humbugg_mcp/ui/*.html, which the server serves and the image
+      # copies — so it runs before pytest and before docker build.
+      - name: Build the MCP Apps pages
+        run: cd humbugg/mcp/widgets && npm run build
+
+      - name: Widget unit tests
+        run: cd humbugg/mcp/widgets && npm test
+
+      - name: Python tests
+        run: cd humbugg/mcp && uv run --group dev pytest -q
+
+      - name: Install Playwright chromium
+        run: cd humbugg/mcp/widgets && npx playwright install --with-deps chromium
+
+      - name: Widget browser tests
+        run: cd humbugg/mcp/widgets && npm run test:e2e
+
+      - name: Upload Playwright traces
+        if: failure()
+        uses: actions/upload-artifact@v4
+        with:
+          name: mcp-widget-playwright-traces
+          path: humbugg/mcp/widgets/test-results/
+          retention-days: 7
+          if-no-files-found: ignore
+
+      # amd64 on this runner, as in humbugg-prod.yaml; the Lambda is x86_64.
+      - name: Build the MCP Lambda image (verify only, no push)
+        run: docker build -t humbugg-mcp:ci-verify humbugg/mcp
+
+      - name: Start the stubbed server
+        run: |
+          cd humbugg/mcp
+          nohup uv run --extra hosted uvicorn humbugg_mcp.testing:app \
+            --host 127.0.0.1 --port 5002 > "${RUNNER_TEMP}/mcp-server.log" 2>&1 &
+          for _ in {1..30}; do
+            code="$(curl --silent --output /dev/null --write-out '%{http_code}' "${MCP_URL}" || true)"
+            if [ "${code}" != "000" ]; then echo "server answered ${code}"; exit 0; fi
+            sleep 1
+          done
+          cat "${RUNNER_TEMP}/mcp-server.log"
+          exit 1
+
+      # The official suite: lifecycle, tools, resources, JSON Schema, stateless
+      # HTTP, headers, DNS rebinding. v0.1.x, so pinned; a baseline, when one
+      # exists, lists the known failures and fails the run on a stale entry.
+      - name: MCP conformance suite
+        run: |
+          baseline=humbugg/mcp/tests/conformance-baseline.yml
+          args=(server --url "${MCP_URL}")
+          if [ -f "${baseline}" ]; then args+=(--expected-failures "${baseline}"); fi
+          npx --yes @modelcontextprotocol/conformance@0.1.16 "${args[@]}"
+
+      # --strict: exit 6 on an error-severity schema portability problem, the
+      # kind a host refuses. --app-info: the page tools are recognised as MCP
+      # Apps. tools/list --app-info is NDJSON and exits 0 regardless, so the
+      # assertion is on the body: at least one tool must carry an App.
+      - name: Inspector CLI — strict schemas and MCP Apps
+        run: |
+          set -euo pipefail
+          MCP_STORAGE_DIR="$(mktemp -d)"
+          export MCP_STORAGE_DIR
+          export MCP_INSPECTOR_OAUTH_STATE_PATH="${MCP_STORAGE_DIR}/oauth.json"
+          mcp() {
+            npx --yes @modelcontextprotocol/inspector@2.8.0 --cli \
+              --transport http --server-url "${MCP_URL}" \
+              --connect-timeout 10000 --stored-auth-only "$@"
+          }
+          mcp --method tools/list --strict --format json > /dev/null
+          echo "ok: tools/list --strict"
+          apps="$(mcp --method tools/list --app-info)"
+          printf '%s\n' "${apps}"
+          printf '%s\n' "${apps}" | jq -s -e \
+            'map(select((.appInfo.hasApp // .hasApp) == true)) | length > 0' > /dev/null
+          echo "ok: MCP Apps present"
+
+      # Positive and mutated calls for every tool, from the sample arguments in
+      # the dictionary. --network host because host.docker.internal does not
+      # resolve on a Linux runner without extra flags, and the server listens
+      # on the runner's loopback.
+      - name: Specmatic MCP auto test
+        run: |
+          mkdir -p "${RUNNER_TEMP}/specmatic"
+          docker run --rm --network host \
+            -v "${RUNNER_TEMP}/specmatic:/usr/src/app/build/reports/specmatic" \
+            -v "$(pwd)/humbugg/mcp/tests/specmatic-dictionary.json:/usr/src/app/specmatic-dictionary.json:ro" \
+            specmatic/specmatic:2.55.0 mcp test \
+            --url "${MCP_URL}" \
+            --transport-kind=STREAMABLE_HTTP \
+            --dictionary-file specmatic-dictionary.json \
+            --enable-resiliency-tests
+          # Specmatic exits 0 whatever its verdicts; this is the gate.
+          python3 humbugg/mcp/tests/specmatic_check.py "${RUNNER_TEMP}/specmatic/mcp/mcp_test_report.json"
+
+      - name: Upload Specmatic report and server log
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: mcp-conformance-reports
+          path: |
+            ${{ runner.temp }}/specmatic/
+            ${{ runner.temp }}/mcp-server.log
+            results/
+          retention-days: 7
+          if-no-files-found: ignore

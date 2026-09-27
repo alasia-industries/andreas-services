@@ -18,6 +18,10 @@ answer, and this file is where it lives.
 | App browser, live | same specs, plus an API round trip (`session.spec.ts`, #373) | local only | dev backend + dev Cognito | `E2E_LIVE=1` |
 | Marketing unit | `marketing/**/*.test.ts(x)` | every PR | jsdom | — |
 | Prod smoke | `humbugg-prod.yaml` post-deploy jobs | after deploy | live prod, anonymously **and signed in** (#642) | — |
+| MCP unit | `mcp/tests/` | every PR | the in-memory stub API (`humbugg_mcp/stub.py`) | — |
+| MCP pages | `mcp/widgets/` (vitest + Playwright) | every PR | a test host + committed fixtures | — |
+| MCP conformance | `humbugg-pr.yml` job `mcp` | every PR | `humbugg_mcp.testing:app` — the stub, never AWS | — |
+| MCP integration | `mcp/tests/test_integration.py` | **local only** | the dev backend + dev Cognito, seeded people | `HUMBUGG_INTEGRATION=1` |
 
 The prod smoke jobs (the curl assertions over all three surfaces and the SES
 mailbox-simulator loop) are a **detector, not a gate**: there is no staging, the

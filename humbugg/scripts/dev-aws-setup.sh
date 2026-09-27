@@ -99,6 +99,9 @@ outputs="$(terraform_output_json)"
 pool_id="$(jq -r '.cognito_user_pool_id.value' <<<"$outputs")"
 client_id="$(jq -r '.cognito_client_id.value' <<<"$outputs")"
 auth_domain="$(jq -r '.cognito_auth_domain.value' <<<"$outputs")"
+# Every MCP host's client on the shared pool, comma-joined: the backend accepts
+# their access tokens beside the app client's (Program.cs), as prod does.
+mcp_client_ids="$(jq -r '(.cognito_mcp_client_ids.value // {}) | [.[]] | join(",")' <<<"$outputs")"
 bucket="$(jq -r '.app_bucket_name.value' <<<"$outputs")"
 webhook_url="$(jq -r '.webhook_endpoint_url.value' <<<"$outputs")"
 webhook_queue="$(jq -r '.webhook_queue_url.value' <<<"$outputs")"
@@ -175,6 +178,7 @@ line "# Cognito — the SHARED dev pool (infra/envs/dev-shared), one for every m
 gen COGNITO_REGION "$AWS_REGION_VALUE"
 gen COGNITO_USER_POOL_ID "$pool_id"
 gen COGNITO_CLIENT_ID "$client_id"
+gen COGNITO_ADDITIONAL_CLIENT_IDS "$mcp_client_ids"
 line ""
 line "# Storage. Empty endpoints mean real AWS, not a local emulator."
 gen DYNAMODB_ENDPOINT_URL ""

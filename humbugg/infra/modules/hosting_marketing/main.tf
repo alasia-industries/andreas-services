@@ -54,6 +54,19 @@ resource "aws_cloudfront_function" "canonical_redirect" {
   code    = file("${path.module}/canonical_redirect.js")
 }
 
+locals {
+  # Everything in humbugg/marketing/public/ outside /assets — keep in step with that folder.
+  public_file_paths = [
+    "/favicon.ico",
+    "/favicon-*.png",
+    "/apple-touch-icon.png",
+    "/android-chrome-*.png",
+    "/humbugg-favicon.png",
+    "/site.webmanifest",
+    "/brand/*",
+  ]
+}
+
 resource "aws_cloudfront_distribution" "app" {
   enabled         = true
   is_ipv6_enabled = true
@@ -91,6 +104,29 @@ resource "aws_cloudfront_distribution" "app" {
     function_association {
       event_type   = "viewer-request"
       function_arn = aws_cloudfront_function.canonical_redirect.arn
+    }
+  }
+
+  # The un-hashed files `marketing/public/` puts at the site root (favicons, the web
+  # manifest, the brand art). The deploy uploads them to the bucket with the hashed
+  # assets, but without a behavior of their own they fell to the SSR default and
+  # 404'd there — `/favicon.ico` included. Explicit paths, not `/*.png`, so a future
+  # page route can never be shadowed by the bucket.
+  dynamic "ordered_cache_behavior" {
+    for_each = local.public_file_paths
+    content {
+      path_pattern           = ordered_cache_behavior.value
+      allowed_methods        = ["GET", "HEAD"]
+      cached_methods         = ["GET", "HEAD"]
+      target_origin_id       = "S3-marketing"
+      viewer_protocol_policy = "redirect-to-https"
+      compress               = true
+      cache_policy_id        = data.aws_cloudfront_cache_policy.optimized.id
+
+      function_association {
+        event_type   = "viewer-request"
+        function_arn = aws_cloudfront_function.canonical_redirect.arn
+      }
     }
   }
 

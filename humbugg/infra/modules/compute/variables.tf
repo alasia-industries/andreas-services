@@ -29,6 +29,12 @@ variable "cognito_client_id" {
   type        = string
 }
 
+variable "cognito_additional_client_ids" {
+  description = "Further Cognito clients the API authorizer accepts beside the app client — one per MCP host"
+  type        = list(string)
+  default     = []
+}
+
 variable "mailer_status_queue_arn" {
   description = "Mailer status queue consumed by the Humbugg status Lambda"
   type        = string

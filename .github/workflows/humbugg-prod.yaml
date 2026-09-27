@@ -6,17 +6,18 @@ name: Humbugg · Deploy · Prod
 # runs before deploy-infra to eliminate the chicken-and-egg of an empty ECR
 # repo on first deploy):
 #
-#   detect-changes ─► build-and-push (backend + SSR marketing images and assets)
+#   detect-changes ─► build-and-push (backend, SSR marketing and MCP images; assets)
 #                          │
 #                          ▼
 #                     deploy-infra (terraform apply)
 #                          │
-#                          ├─► update-lambda           (env vars + pin both Lambdas to :sha)
+#                          ├─► update-lambda           (env vars + pin every Lambda to :sha)
 #                          ├─► deploy-frontend-assets  (marketing hashed assets → S3)
 #                          └─► deploy-app              (Expo web export → S3, built here)
 #
 # Three surfaces come out of this: www.humbugg.com (marketing SSR),
-# app.humbugg.com (Expo static export) and api.humbugg.com (backend Lambda).
+# app.humbugg.com (Expo static export) and api.humbugg.com (backend Lambda,
+# plus the MCP connector's Lambda on /mcp, /oauth/* and /.well-known/*).
 # The Expo export is built in deploy-app rather than build-and-push because Metro
 # inlines EXPO_PUBLIC_* at build time and those values come from the apply.
 
@@ -56,6 +57,8 @@ env:
   REALTIME_CONNECTIONS_LAMBDA_NAME: humbugg-prod-realtime-connections
   STRIPE_WEBHOOKS_LAMBDA_NAME: humbugg-prod-stripe-webhook-consumer
   MARKETING_LAMBDA_NAME: humbugg-prod-marketing
+  MCP_ECR_REPO: humbugg-prod-mcp
+  MCP_LAMBDA_NAME: humbugg-prod-mcp
 
 jobs:
   detect-changes:
@@ -67,6 +70,7 @@ jobs:
       backend: ${{ steps.filter.outputs.backend }}
       web: ${{ steps.filter.outputs.web }}
       app: ${{ steps.filter.outputs.app }}
+      mcp: ${{ steps.filter.outputs.mcp }}
       shared_infra: ${{ steps.filter.outputs.shared_infra }}
     steps:
       - uses: actions/checkout@v7
@@ -91,6 +95,9 @@ jobs:
             app:
               - 'humbugg/app/**'
               - '.github/workflows/humbugg-prod.yaml'
+            mcp:
+              - 'humbugg/mcp/**'
+              - '.github/workflows/humbugg-prod.yaml'
             shared_infra:
               - 'infra/**'
 
@@ -109,7 +116,8 @@ jobs:
          && (needs.detect-changes.outputs.infra == 'true'
              || needs.detect-changes.outputs.backend == 'true'
              || needs.detect-changes.outputs.web == 'true'
-             || needs.detect-changes.outputs.app == 'true'))
+             || needs.detect-changes.outputs.app == 'true'
+             || needs.detect-changes.outputs.mcp == 'true'))
         || (github.event_name == 'workflow_dispatch'
             && (inputs.run_infra || inputs.run_app))
         || github.event_name == 'workflow_run'
@@ -133,6 +141,7 @@ jobs:
           cache-dependency-path: |
             humbugg/marketing/package-lock.json
             humbugg/app/package-lock.json
+            humbugg/mcp/widgets/package-lock.json
 
       - name: Configure AWS credentials
         uses: aws-actions/configure-aws-credentials@v6
@@ -150,7 +159,7 @@ jobs:
 
       - name: Ensure ECR repositories exist
         run: |
-          for REPO in "${API_ECR_REPO}" "${MARKETING_ECR_REPO}"; do
+          for REPO in "${API_ECR_REPO}" "${MARKETING_ECR_REPO}" "${MCP_ECR_REPO}"; do
             aws ecr describe-repositories --repository-names "${REPO}" \
               --region "${{ env.AWS_REGION }}" >/dev/null 2>&1 || \
             aws ecr create-repository \
@@ -185,6 +194,25 @@ jobs:
         run: |
           IMAGE="${ECR_REGISTRY}/${MARKETING_ECR_REPO}"
           cd humbugg/marketing
+          docker build -t "${IMAGE}:${{ github.sha }}" -t "${IMAGE}:latest" .
+          docker push "${IMAGE}:${{ github.sha }}"
+          docker push "${IMAGE}:latest"
+
+      # The MCP Apps pages are built output (humbugg_mcp/ui/*.html, gitignored)
+      # that the image copies, so they are built first. amd64, like every image
+      # here: the runner builds natively and the Lambda is x86_64.
+      - name: Install MCP widget dependencies
+        env:
+          NODE_AUTH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: cd humbugg/mcp/widgets && npm ci
+
+      - name: Build MCP Apps pages
+        run: cd humbugg/mcp/widgets && npm run build
+
+      - name: Build & push MCP server
+        run: |
+          IMAGE="${ECR_REGISTRY}/${MCP_ECR_REPO}"
+          cd humbugg/mcp
           docker build -t "${IMAGE}:${{ github.sha }}" -t "${IMAGE}:latest" .
           docker push "${IMAGE}:${{ github.sha }}"
           docker push "${IMAGE}:latest"
@@ -259,6 +287,7 @@ jobs:
           }
           adopt module.compute.aws_ecr_repository.api "${API_ECR_REPO}"
           adopt module.compute.aws_ecr_repository.marketing "${MARKETING_ECR_REPO}"
+          adopt module.mcp.aws_ecr_repository.mcp "${MCP_ECR_REPO}"
 
       - name: Terraform apply
         env:
@@ -322,6 +351,8 @@ jobs:
           put app-s3-bucket        "$(tf app_bucket)"
           put app-cf-dist-id       "$(tf app_cloudfront_distribution_id)"
           put email-from-address   "$(tf email_from_address)"
+          put mcp-ecr-url          "$(tf mcp_ecr_repository_url)"
+          # /humbugg/prod/mcp-clients is Terraform's own parameter (envs/prod).
 
   # ---------------------------------------------------------------------------
   # Update Lambda env vars and pin function code to :sha.
@@ -381,6 +412,21 @@ jobs:
           put COGNITO_CLIENT_ID       /humbugg/prod/cognito-client-id
           put HUMBUGG_MAILER_BASE_URL /mailer/prod/humbugg/api-url
           put HUMBUGG_REALTIME_ENDPOINT /humbugg/prod/realtime-endpoint
+          put MCP_ECR_URL             /humbugg/prod/mcp-ecr-url
+          put COGNITO_AUTH_DOMAIN     /humbugg/prod/cognito-auth-domain
+          put API_DOMAIN              /humbugg/prod/api-domain
+
+          # MCP host => {client_id, redirect_uris}, as JSON — one line, so it
+          # fits GITHUB_ENV's KEY=value form. The MCP Lambda takes it whole; the
+          # API takes every client_id in it as COGNITO_ADDITIONAL_CLIENT_IDS.
+          mcp_clients="$(aws ssm get-parameter --name /humbugg/prod/mcp-clients \
+            --query Parameter.Value --output text)" || exit 1
+          mcp_clients="$(jq -c . <<<"${mcp_clients}")" || exit 1
+          additional="$(jq -r '[.[].client_id] | join(",")' <<<"${mcp_clients}")" || exit 1
+          [ -n "${additional}" ] ||
+            { echo "::error::/humbugg/prod/mcp-clients names no client; refusing to continue." >&2; exit 1; }
+          echo "HUMBUGG_MCP_CLIENTS=${mcp_clients}" >> "$GITHUB_ENV"
+          echo "COGNITO_ADDITIONAL_CLIENT_IDS=${additional}" >> "$GITHUB_ENV"
           # EMAIL_STATUS_LAMBDA_NAME is not read from SSM: the name is deterministic
           # (humbugg-prod-email-status) and already set as a job-level env default,
           # matching BACKEND/FRONTEND. Reading a missing SSM param here silently produced an
@@ -394,6 +440,7 @@ jobs:
             --arg cognito_region "${{ env.AWS_REGION }}" \
             --arg cognito_pool_id "${COGNITO_USER_POOL_ID}" \
             --arg cognito_client_id "${COGNITO_CLIENT_ID}" \
+            --arg cognito_additional_client_ids "${COGNITO_ADDITIONAL_CLIENT_IDS}" \
             --arg profiles_table "humbugg-prod-profiles" \
             --arg groups_table "humbugg-prod-groups" \
             --arg invitations_table "humbugg-prod-invitations" \
@@ -431,6 +478,7 @@ jobs:
               COGNITO_REGION: $cognito_region,
               COGNITO_USER_POOL_ID: $cognito_pool_id,
               COGNITO_CLIENT_ID: $cognito_client_id,
+              COGNITO_ADDITIONAL_CLIENT_IDS: $cognito_additional_client_ids,
               HUMBUGG_PROFILES_TABLE: $profiles_table,
               HUMBUGG_GROUPS_TABLE: $groups_table,
               HUMBUGG_INVITATIONS_TABLE: $invitations_table,
@@ -553,6 +601,30 @@ jobs:
               NODE_ENV: "production"
             }}' > /tmp/env-humbugg-frontend.json
 
+          # The MCP connector (humbugg/mcp). Exactly what humbugg_mcp's config
+          # reads, and what modules/mcp sets on first creation — keep the three
+          # in step. The public URL and the API base are both the API's own
+          # domain: the connector lives at <origin>/mcp beside /api/*.
+          jq -n \
+            --arg public_url "${API_DOMAIN}" \
+            --arg api_url "${API_DOMAIN}" \
+            --arg cognito_domain "https://${COGNITO_AUTH_DOMAIN}" \
+            --arg cognito_pool_id "${COGNITO_USER_POOL_ID}" \
+            --arg mcp_clients "${HUMBUGG_MCP_CLIENTS}" \
+            --arg ratelimit_table "humbugg-prod-mcp-ratelimit" \
+            --arg rate_limit "${{ vars.HUMBUGG_MCP_RATE_LIMIT_PER_MINUTE || '60' }}" \
+            '{Variables: {
+              HUMBUGG_MCP_PUBLIC_URL: $public_url,
+              HUMBUGG_API_URL: $api_url,
+              HUMBUGG_COGNITO_DOMAIN: $cognito_domain,
+              HUMBUGG_COGNITO_USER_POOL_ID: $cognito_pool_id,
+              HUMBUGG_MCP_CLIENTS: $mcp_clients,
+              HUMBUGG_MCP_RATELIMIT_TABLE: $ratelimit_table,
+              HUMBUGG_MCP_RATE_LIMIT_PER_MINUTE: $rate_limit,
+              AWS_LWA_PORT: "8080",
+              AWS_LWA_READINESS_CHECK_PATH: "/healthz"
+            }}' > /tmp/env-humbugg-mcp.json
+
           aws lambda update-function-configuration \
             --function-name "${API_LAMBDA_NAME}" \
             --region "${{ env.AWS_REGION }}" \
@@ -606,6 +678,15 @@ jobs:
 
           aws lambda wait function-updated \
             --function-name "${MARKETING_LAMBDA_NAME}" \
+            --region "${{ env.AWS_REGION }}"
+
+          aws lambda update-function-configuration \
+            --function-name "${MCP_LAMBDA_NAME}" \
+            --region "${{ env.AWS_REGION }}" \
+            --environment file:///tmp/env-humbugg-mcp.json
+
+          aws lambda wait function-updated \
+            --function-name "${MCP_LAMBDA_NAME}" \
             --region "${{ env.AWS_REGION }}"
 
           aws lambda update-function-code \
@@ -676,6 +757,17 @@ jobs:
             --function-name "${MARKETING_LAMBDA_NAME}" \
             --region "${{ env.AWS_REGION }}"
 
+          aws lambda update-function-code \
+            --function-name "${MCP_LAMBDA_NAME}" \
+            --image-uri "${MCP_ECR_URL}:${{ github.sha }}" \
+            --region "${{ env.AWS_REGION }}" \
+            --output table \
+            --query '{FunctionName:FunctionName,CodeSize:CodeSize}'
+
+          aws lambda wait function-updated \
+            --function-name "${MCP_LAMBDA_NAME}" \
+            --region "${{ env.AWS_REGION }}"
+
   # ---------------------------------------------------------------------------
   # Sync the client bundle built alongside the SSR image to S3.
   # ---------------------------------------------------------------------------
@@ -729,10 +821,21 @@ jobs:
 
       - name: Sync hashed assets (long cache)
         run: |
-          aws s3 sync build/client/ "s3://${S3_BUCKET}/" \
+          aws s3 sync build/client/assets/ "s3://${S3_BUCKET}/assets/" \
             --region "${{ env.AWS_REGION }}" \
             --delete \
             --cache-control "public,max-age=31536000,immutable"
+
+      # The root files from marketing/public/ (favicons, manifest, brand art) keep their
+      # names across deploys, so they must not be immutable: a day, and a new favicon
+      # shows up. CloudFront routes them to the bucket (modules/hosting_marketing).
+      - name: Sync public files (short cache)
+        run: |
+          aws s3 sync build/client/ "s3://${S3_BUCKET}/" \
+            --region "${{ env.AWS_REGION }}" \
+            --exclude "assets/*" \
+            --delete \
+            --cache-control "public,max-age=86400"
 
       - name: Invalidate CloudFront
         run: |
@@ -1081,6 +1184,58 @@ jobs:
             exit 1
           fi
 
+      # ── The MCP connector, anonymously ───────────────────────────────────────
+      #
+      # What an MCP host does before anyone has signed in: POST /mcp, get a 401
+      # whose WWW-Authenticate names the protected-resource metadata, fetch that,
+      # then the authorization server's metadata. Claude gives each document 10 s,
+      # so the timing is asserted, not just the status. These routes carry no
+      # gateway authorizer (modules/mcp), so a 401 here is the SERVER's answer —
+      # the header is what proves it; the gateway's bare 401 carries none.
+      - name: Verify the MCP connector's public surface
+        run: |
+          set -euo pipefail
+          origin=https://api.humbugg.com
+
+          headers="$(mktemp)"
+          status="$(curl --silent --output /dev/null --dump-header "${headers}" --write-out '%{http_code}' \
+            --retry 5 --retry-delay 5 --retry-all-errors --max-time 10 \
+            -X POST -H 'Content-Type: application/json' -H 'Accept: application/json, text/event-stream' \
+            -d '{"jsonrpc":"2.0","id":1,"method":"initialize","params":{"protocolVersion":"2025-06-18","capabilities":{},"clientInfo":{"name":"humbugg-smoke","version":"1"}}}' \
+            "${origin}/mcp")"
+          echo "POST /mcp, no token: ${status}"
+          test "${status}" = "401"
+          challenge="$(grep -i '^www-authenticate:' "${headers}" | tr -d '\r' || true)"
+          rm -f "${headers}"
+          echo "${challenge}"
+          grep -q 'resource_metadata=' <<<"${challenge}" ||
+            { echo "The 401 carries no resource_metadata pointer; an MCP host cannot start OAuth."; exit 1; }
+          prm_url="$(sed -E 's/.*resource_metadata="?([^",]+)"?.*/\1/' <<<"${challenge}")"
+
+          # Whatever the pointer names, plus both well-known spellings a host may
+          # try on its own (RFC 9728 path-inserted, and the bare one).
+          for url in "${prm_url}" \
+                     "${origin}/.well-known/oauth-protected-resource/mcp" \
+                     "${origin}/.well-known/oauth-authorization-server"; do
+            result="$(curl --silent --output /dev/null --write-out '%{http_code} %{time_total}' --max-time 10 "${url}")"
+            echo "GET ${url}: ${result}"
+            test "${result%% *}" = "200"
+          done
+
+          # The authorization server must be our shim on this origin (Cognito's own
+          # discovery lacks code_challenge_methods_supported), and it must say S256.
+          curl --silent --fail --max-time 10 "${origin}/.well-known/oauth-authorization-server" |
+            jq -e --arg o "${origin}" \
+              '(.code_challenge_methods_supported | index("S256")) != null and (.registration_endpoint | startswith($o))' > /dev/null
+          echo "Authorization server metadata: S256 and registration on ${origin}: yes"
+
+          # The icon a host can find for the connector on its own domain.
+          for icon in favicon.ico favicon.svg; do
+            ctype="$(curl --silent --output /dev/null --write-out '%{http_code} %{content_type}' --max-time 10 "${origin}/${icon}")"
+            echo "GET /${icon}: ${ctype}"
+            [[ "${ctype}" == "200 image/"* ]] || { echo "/${icon} is not served as an image."; exit 1; }
+          done
+
       # ── The authenticated round trip (#642, #586) ─────────────────────────────
       #
       # Everything above is anonymous, and anonymous was already the covered half.
@@ -1280,3 +1435,98 @@ jobs:
             echo "Expected 401; got ${anon}."
             exit 1
           fi
+
+      # ── The MCP connector, signed in ─────────────────────────────────────────
+      #
+      # The same smoke account, signed in over SRP against the SMOKE MCP client
+      # (humbugg-prod-mcp-smoke: SRP only, no OAuth, no callbacks) — the app
+      # client's tokens are exactly what the MCP server must refuse, which is
+      # asserted last. Read-only (docs/TESTING.md rule 9): whoami and
+      # list_groups, and nothing that writes.
+      - name: Read the MCP smoke client from SSM
+        if: ${{ env.SMOKE_AUTH_AVAILABLE == 'true' }}
+        run: |
+          set -euo pipefail
+          clients="$(aws ssm get-parameter --name /humbugg/prod/mcp-clients \
+            --query Parameter.Value --output text)"
+          smoke="$(jq -r '.smoke.client_id // empty' <<<"${clients}")"
+          [ -n "${smoke}" ] ||
+            { echo "::error::/humbugg/prod/mcp-clients has no smoke client; refusing to continue." >&2; exit 1; }
+          echo "MCP_SMOKE_CLIENT_ID=${smoke}" >> "$GITHUB_ENV"
+
+      - name: MCP round trip
+        if: ${{ env.SMOKE_AUTH_AVAILABLE == 'true' }}
+        env:
+          HUMBUGG_SMOKE_USER_EMAIL: ${{ vars.HUMBUGG_SMOKE_USER_EMAIL }}
+          HUMBUGG_SMOKE_USER_PASSWORD: ${{ secrets.HUMBUGG_SMOKE_USER_PASSWORD }}
+        run: |
+          set -euo pipefail
+          server=https://api.humbugg.com/mcp
+
+          # Each session is masked on stdout before anything is taken out of it,
+          # as in the authenticated round trip above.
+          mcp_session="$(COGNITO_CLIENT_ID="${MCP_SMOKE_CLIENT_ID}" node humbugg/scripts/smoke-session.mjs)"
+          echo "::add-mask::${mcp_session}"
+          app_session="$(node humbugg/scripts/smoke-session.mjs)"
+          echo "::add-mask::${app_session}"
+          mcp_token="$(jq -r '.accessToken // empty' <<<"${mcp_session}")"
+          echo "::add-mask::${mcp_token}"
+          app_token="$(jq -r '.accessToken // empty' <<<"${app_session}")"
+          echo "::add-mask::${app_token}"
+          sub="$(printf '%s' "${mcp_token}" | node -e '
+            let s = "";
+            process.stdin.on("data", (c) => (s += c));
+            process.stdin.on("end", () => {
+              const payload = JSON.parse(Buffer.from(s.trim().split(".")[1], "base64url").toString("utf8"));
+              process.stdout.write(payload.sub ?? "");
+            });
+          ')"
+          [ -n "${mcp_token}" ] && [ -n "${app_token}" ] && [ -n "${sub}" ] ||
+            { echo "A smoke session came back without an access token or a sub."; exit 1; }
+
+          # An isolated, empty token store and --stored-auth-only: the CLI never
+          # opens a browser, and a missing credential is exit 3 at once.
+          MCP_STORAGE_DIR="$(mktemp -d)"
+          export MCP_STORAGE_DIR
+          export MCP_INSPECTOR_OAUTH_STATE_PATH="${MCP_STORAGE_DIR}/oauth.json"
+          mcp() {
+            local token="$1"; shift
+            npx --yes @modelcontextprotocol/inspector@2.8.0 --cli \
+              --transport http --server-url "${server}" \
+              --connect-timeout 10000 --stored-auth-only --format json \
+              --header "Authorization: Bearer ${token}" "$@"
+          }
+
+          # 1. tools/list, and the two tools this job relies on are in it.
+          mcp "${mcp_token}" --method tools/list |
+            jq -e '[.result.tools[].name] as $have | ["whoami","list_groups"] - $have | length == 0' > /dev/null
+          echo "tools/list includes whoami and list_groups: yes"
+
+          # A tool's payload: structuredContent when present, else the first text
+          # block parsed as JSON.
+          payload='.result | (.structuredContent // (.content[0].text | fromjson))'
+
+          # 2. whoami answers as this account.
+          who="$(mcp "${mcp_token}" --method tools/call --tool-name whoami)"
+          jq -e '.result.isError != true' <<<"${who}" > /dev/null
+          jq -e --arg sub "${sub}" "${payload} | .user_id == \$sub" <<<"${who}" > /dev/null ||
+            { echo "whoami names a user other than the token's sub."; exit 1; }
+          echo "whoami user_id equals the token's sub: yes"
+
+          # 3. list_groups is empty — the smoke account joins nothing, ever.
+          #    Other members' text comes back wrapped as {note, data}.
+          groups="$(mcp "${mcp_token}" --method tools/call --tool-name list_groups)"
+          jq -e '.result.isError != true' <<<"${groups}" > /dev/null
+          jq -e "${payload} | (if type == \"object\" then (.data // .result) else . end) == []" <<<"${groups}" > /dev/null ||
+            { echo "list_groups is not empty for the smoke account."; exit 1; }
+          echo "list_groups is empty: yes"
+
+          # 4. The APP client's access token is refused at /mcp: valid, signed by
+          #    the pool, and still not a client the connector serves.
+          app_status="$(curl --silent --output /dev/null --write-out '%{http_code}' --max-time 10 \
+            -X POST -H 'Content-Type: application/json' -H 'Accept: application/json, text/event-stream' \
+            -H "Authorization: Bearer ${app_token}" \
+            -d '{"jsonrpc":"2.0","id":1,"method":"initialize","params":{"protocolVersion":"2025-06-18","capabilities":{},"clientInfo":{"name":"humbugg-smoke","version":"1"}}}' \
+            "${server}")"
+          echo "POST /mcp, app-client access token: ${app_status}"
+          test "${app_status}" = "401"

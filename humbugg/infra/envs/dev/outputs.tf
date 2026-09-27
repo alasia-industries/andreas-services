@@ -19,6 +19,11 @@ output "cognito_auth_domain" {
   value = data.aws_ssm_parameter.cognito_auth_domain.insecure_value
 }
 
+output "cognito_mcp_client_ids" {
+  description = "MCP host => its client id on the shared dev pool"
+  value       = jsondecode(data.aws_ssm_parameter.cognito_mcp_client_ids.insecure_value)
+}
+
 output "table_names" {
   value = module.storage.table_names
 }

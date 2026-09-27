@@ -1,0 +1,47 @@
+{
+  "group": {
+    "group_id": "grp_office_2026",
+    "name": "Office Secret Santa"
+  },
+  "wishes": [
+    {
+      "wish_id": "own_1",
+      "kind": "product",
+      "title": "Noise-cancelling headphones",
+      "url": "https://shop.example.com/hp",
+      "image_url": null,
+      "price_cents": 19900,
+      "currency": "USD",
+      "quantity": 1,
+      "priority": "high",
+      "details": null,
+      "position": 0
+    },
+    {
+      "wish_id": "own_2",
+      "kind": "charity",
+      "title": "A donation to the food bank",
+      "url": null,
+      "image_url": null,
+      "price_cents": null,
+      "currency": null,
+      "quantity": 1,
+      "priority": "normal",
+      "details": "Any amount.",
+      "position": 1
+    },
+    {
+      "wish_id": "own_3",
+      "kind": "custom",
+      "title": "A mixtape",
+      "url": null,
+      "image_url": null,
+      "price_cents": null,
+      "currency": null,
+      "quantity": 1,
+      "priority": "low",
+      "details": null,
+      "position": 2
+    }
+  ]
+}

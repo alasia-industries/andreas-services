@@ -149,3 +149,39 @@ variable "linkedin_client_secret" {
   default     = ""
   sensitive   = true
 }
+
+# ---------------------------------------------------------------------------
+# MCP hosts. One app client per host that connects to the Humbugg MCP server
+# (`humbugg/mcp`), so a host can be disabled or have its tokens revoked alone
+# and every token's `client_id` says which host acted. The server and its
+# tools are identical for every host; only the client differs.
+#
+# `oauth = true` is a host that signs people in through the Managed Login
+# pages (Claude): public, code + PKCE, its own branding record.
+# `oauth = false` is a password-only client for tooling — the post-deploy
+# smoke test signs in over SRP against it — with no callbacks and no hosted
+# pages at all.
+# ---------------------------------------------------------------------------
+
+variable "mcp_clients" {
+  description = "MCP host name => its Cognito app client: exact OAuth callback URLs, and whether it signs in through Managed Login at all"
+  type = map(object({
+    callback_urls = list(string)
+    oauth         = bool
+  }))
+  default = {}
+
+  validation {
+    condition     = alltrue([for host in keys(var.mcp_clients) : can(regex("^[a-z0-9]+(-[a-z0-9]+)*$", host))])
+    error_message = "mcp_clients keys become part of a resource name: lowercase letters, digits and single hyphens only."
+  }
+
+  # An OAuth client with no callback cannot complete a sign-in, and a password
+  # client with callbacks is a hosted-page client by accident.
+  validation {
+    condition = alltrue([
+      for c in values(var.mcp_clients) : c.oauth ? length(c.callback_urls) > 0 : length(c.callback_urls) == 0
+    ])
+    error_message = "An oauth MCP client needs at least one callback URL; a non-oauth one must have none."
+  }
+}
