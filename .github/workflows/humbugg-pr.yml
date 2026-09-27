@@ -297,6 +297,8 @@ jobs:
   mcp:
     name: MCP Connector
     runs-on: ubuntu-latest
+    # A hung step otherwise holds the runner for GitHub's six-hour default.
+    timeout-minutes: 30
     permissions:
       contents: read
       packages: read
@@ -361,9 +363,14 @@ jobs:
         run: |
           cd humbugg/mcp
           nohup uv run --extra hosted uvicorn humbugg_mcp.testing:app \
-            --host 127.0.0.1 --port 5002 > "${RUNNER_TEMP}/mcp-server.log" 2>&1 &
+            --host 127.0.0.1 --port 5002 > "${RUNNER_TEMP}/mcp-server.log" 2>&1 < /dev/null &
+          # A POST initialize answers at once. A bare GET /mcp is the server's event
+          # stream, which never ends: that probe hung this step until the job timed out.
           for _ in {1..30}; do
-            code="$(curl --silent --output /dev/null --write-out '%{http_code}' "${MCP_URL}" || true)"
+            code="$(curl --silent --output /dev/null --write-out '%{http_code}' --max-time 5 \
+              -X POST -H 'Content-Type: application/json' -H 'Accept: application/json, text/event-stream' \
+              -d '{"jsonrpc":"2.0","id":1,"method":"initialize","params":{"protocolVersion":"2025-06-18","capabilities":{},"clientInfo":{"name":"ci","version":"0"}}}' \
+              "${MCP_URL}" || true)"
             if [ "${code}" != "000" ]; then echo "server answered ${code}"; exit 0; fi
             sleep 1
           done
