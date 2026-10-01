@@ -1,9 +1,0 @@
-{
-  "name": "humbugg-scripts",
-  "private": true,
-  "type": "module",
-  "description": "Dependencies for the operational scripts in this directory. Only smoke-session.mjs needs one; the rest are dependency-free. Kept separate from humbugg/app so the post-deploy smoke job installs 22 packages rather than the app's whole Expo toolchain.",
-  "dependencies": {
-    "amazon-cognito-identity-js": "6.3.20"
-  }
-}

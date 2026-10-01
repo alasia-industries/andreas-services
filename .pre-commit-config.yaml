@@ -9,13 +9,6 @@
 #   pre-commit run --all-files
 
 repos:
-  - repo: https://github.com/aws-cloudformation/cfn-lint
-    rev: v1.32.1
-    hooks:
-      - id: cfn-lint
-        files: ^humbugg/infra/.*\.(yaml|yml)$
-        args: [--non-zero-exit-code, error]
-
   - repo: https://github.com/antonbabenko/pre-commit-terraform
     rev: v1.96.1
     hooks:
@@ -29,5 +22,5 @@ repos:
     rev: v0.15.8
     hooks:
       - id: ruff-check
-        files: ^(humbugg|classroom)/.*\.py$
+        files: ^classroom/.*\.py$
 

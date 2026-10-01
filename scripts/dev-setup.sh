@@ -5,7 +5,7 @@
 # Installs the cross-cutting tools every service needs (Terraform, tflint, AWS
 # CLI, GitHub CLI + its gh-stack extension, Node.js, jq, zip, Stripe CLI) with
 # Homebrew on BOTH macOS and Linux. Service-specific
-# runtimes live in per-service scripts, e.g. humbugg/scripts/dev-setup.sh (.NET).
+# runtimes live in per-service scripts, e.g. classroom/scripts/dev-setup.sh.
 #
 # Homebrew details:
 #   - macOS (developer machines): brew runs as the normal user.
@@ -229,7 +229,7 @@ ensure_gh_stack() {
     || warn "gh extension install failed; gh-stack unavailable"
 }
 
-# Agent skills for the tools this repo builds on: the Expo/EAS set and the
+# Agent skills for the tools this repo builds on: the
 # @ansavva/design-system consumer set. They are machine-local tooling, not
 # source — .agents/, .claude/skills/ and skills-lock.json are all gitignored, so
 # a fresh clone has no skills until this runs. The `skills` CLI writes the real
@@ -241,13 +241,12 @@ ensure_skills() {
     return 0
   fi
   if [[ "$CHECK_ONLY" -eq 1 ]]; then
-    warn "agent skills are MISSING (would: npx skills@latest add expo/skills, ansavva/design-system)"
+    warn "agent skills are MISSING (would: npx skills@latest add ansavva/design-system)"
     return 0
   fi
   if ! have npx; then warn "npx not found; skipping agent skills"; return 0; fi
   log "installing agent skills ..."
   ( cd "$REPO_ROOT" \
-    && npx --yes skills@latest add expo/skills --skill '*' \
     && npx --yes skills@latest add ansavva/design-system ) \
     || warn "agent skill install failed; re-run scripts/dev-setup.sh to retry"
 }
@@ -317,6 +316,6 @@ if have docker; then skip docker "$(command -v docker)"; else
 fi
 
 log "shared toolchain ready. For complete service setup run its orchestrator, e.g.:"
-log "    ./humbugg/scripts/dev-setup.sh   # .NET + per-machine AWS"
+log "    ./classroom/scripts/dev-setup.sh"
 [[ "$PLATFORM" == "linux" && "$CHECK_ONLY" -ne 1 && "$BREW_STATE" == "ready" ]] && log "Tools are on PATH via /etc/profile.d/homebrew.sh (new shells) or: eval \"\$($LINUXBREW_PREFIX/bin/brew shellenv)\"" || true
 ok "done."

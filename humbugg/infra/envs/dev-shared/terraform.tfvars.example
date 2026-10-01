@@ -1,3 +1,0 @@
-# dev-aws-setup.sh passes this; nothing here is typed by hand.
-aws_region        = "us-east-1"
-aws_principal_arn = "arn:aws:iam::000000000000:user/example"

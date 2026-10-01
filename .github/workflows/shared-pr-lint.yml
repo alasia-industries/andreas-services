@@ -55,7 +55,7 @@ jobs:
           # other tool in this repo performs.
           #
           # What it defers, measured against main: SC2034 on a loop counter in
-          # humbugg-pr.yml, humbugg-prod.yaml and mailer-pr.yml. All false positives
+          # mailer-pr.yml. All false positives
           # on inspection, none an error.
           #
           # Pinned rather than `latest`: this gates every PR touching a deploy

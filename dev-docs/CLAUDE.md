@@ -28,7 +28,7 @@ boto3.client('s3',
 
 See root `CLAUDE.md` for the full service index.
 
-- `humbugg/` – Gift-exchange platform
+- Humbugg moved to its own repo (`ansavva/humbugg`) on 2026-09-30
 
 ## Shared Infrastructure
 

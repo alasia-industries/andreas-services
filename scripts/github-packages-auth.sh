@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
 #
 # Grant this environment read access to the private @ansavva/design-system
-# package on GitHub Packages (npm.pkg.github.com), which the humbugg, website and
+# package on GitHub Packages (npm.pkg.github.com), which the website and
 # classroom frontends depend on. Installing it requires a token carrying the
 # `read:packages` scope (classic PAT) / "Packages: read" permission
 # (fine-grained PAT / GitHub App). The default GH_TOKEN in CI/sandboxes does NOT
@@ -70,7 +70,7 @@ emit_result() {
       log "Wire it into your shell / CI as NODE_AUTH_TOKEN, e.g.:"
       log "    eval \"\$($0 --export)\"     # current shell"
       log "    export NODE_AUTH_TOKEN=<token>   # or set it as a CI/env secret"
-      log "Then 'npm ci' in humbugg/marketing, humbugg/app, website/frontend and classroom/frontend will resolve the package."
+      log "Then 'npm ci' in website/frontend and classroom/frontend will resolve the package."
       ;;
   esac
 }
