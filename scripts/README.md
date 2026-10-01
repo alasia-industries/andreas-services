@@ -11,7 +11,6 @@ Two layers — a shared base plus thin per-service scripts:
 |---|---|---|
 | `scripts/dev-setup.sh` | Shared base (all services) | Terraform, tflint (+ pinned AWS ruleset, best-effort), AWS CLI, Node.js, jq, zip, Stripe CLI (+ Docker check), agent skills |
 | `scripts/github-packages-auth.sh` | Shared base (all frontends) | Ensures a `read:packages` token is available as `NODE_AUTH_TOKEN` so `npm ci` can install `@ansavva/design-system` from GitHub Packages |
-| `humbugg/scripts/dev-setup.sh` | Humbugg orchestrator | Calls shared setup, installs .NET SDK 10, then calls per-machine AWS setup |
 | `classroom/scripts/dev-setup.sh` | Classroom | Writes `frontend/.env.local` from this machine's dev stack, then installs the backend's Poetry env and the frontend's `node_modules` |
 
 ## Targets (both use Homebrew)
@@ -31,9 +30,6 @@ Notes:
   platform.
 - **Stripe CLI** is installed from Stripe's official Homebrew tap with
   `brew install stripe/stripe-cli/stripe`.
-- **.NET SDK**: Homebrew's `dotnet` formula currently ships exactly `10.0.302`,
-  matching `humbugg/backend/global.json`, so the Humbugg script installs it via
-  `brew install dotnet`.
 - The pinned tflint **AWS ruleset plugin** is installed best-effort on Linux/CI,
   where that release archive is used. macOS skips the Linux-only plugin. The
   download is cached and time-bounded; tflint's bundled `terraform` ruleset
@@ -42,14 +38,11 @@ Notes:
 ## Usage
 
 ```bash
-# From the repo root — complete Humbugg setup in dependency order:
-./humbugg/scripts/dev-setup.sh
-
-# Check every layer without installing or provisioning anything:
-./humbugg/scripts/dev-setup.sh --check
-
-# The shared service-neutral layer remains directly runnable:
+# From the repo root:
 ./scripts/dev-setup.sh
+
+# Check without installing anything:
+./scripts/dev-setup.sh --check
 ```
 
 On Linux, if `brew`/its tools aren't on your `PATH` in a fresh non-login shell:
@@ -60,12 +53,11 @@ eval "$(/home/linuxbrew/.linuxbrew/bin/brew shellenv)"
 
 ## Agent skills
 
-`scripts/dev-setup.sh` installs two skill sets with the `skills` CLI — Expo/EAS
-(`expo/skills`) and the `@ansavva/design-system` consumer set
-(`ansavva/design-system`):
+`scripts/dev-setup.sh` installs the `@ansavva/design-system` consumer skill set
+(`ansavva/design-system`) with the `skills` CLI. The Expo/EAS set moved to the
+Humbugg repo with the app that uses it.
 
 ```bash
-npx --yes skills@latest add expo/skills --skill '*'
 npx --yes skills@latest add ansavva/design-system
 ```
 
@@ -84,7 +76,7 @@ points at the four installed consumer skills for the package's own mechanics.
 
 ## GitHub Packages auth (`@ansavva/design-system`)
 
-The `humbugg/` and `website/` frontends depend on the `@ansavva/design-system`
+The `website/` and `classroom/` frontends depend on the `@ansavva/design-system`
 package, published from the separate
 [ansavva/design-system](https://github.com/ansavva/design-system) repo to
 `npm.pkg.github.com`. Their
@@ -115,5 +107,5 @@ does everything after that.
 ## Adding a new service
 
 Give each service its own `<service>/scripts/dev-setup.sh` for stack-specific
-runtimes (following `humbugg/scripts/dev-setup.sh`), and keep cross-cutting
+runtimes (following `classroom/scripts/dev-setup.sh`), and keep cross-cutting
 tools in the shared `scripts/dev-setup.sh`.

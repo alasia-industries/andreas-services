@@ -5,10 +5,14 @@ description: >-
   check the catalogue before writing a component, import from the package root so the
   bundler picks the platform leaf, and express brand through the theming seams rather
   than hard-coded colours. Use before adding or changing any screen, form, dialog or
-  styled component in humbugg/marketing, humbugg/app or website/.
+  styled component in website/ or classroom/.
 ---
 
 # UI in this repo comes from the design system
+
+> Humbugg (`humbugg/marketing`, `humbugg/app`) moved to its own repo,
+> `ansavva/humbugg`, on 2026-09-30. Its rows below are kept as the reference
+> for a Metro/React Native consumer; its paths no longer exist here.
 
 `@ansavva/design-system` is published from
 [ansavva/design-system](https://github.com/ansavva/design-system) and is the **only** component

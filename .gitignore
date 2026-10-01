@@ -215,10 +215,6 @@ node_modules/
 **/.react-router/
 package-lock.json
 **/package-lock.json
-!humbugg/frontend/package-lock.json
-!humbugg/app/package-lock.json
-!humbugg/scripts/package-lock.json
-!humbugg/mcp/widgets/package-lock.json
 !design-system/package-lock.json
 !website/frontend/package-lock.json
 !classroom/frontend/package-lock.json
@@ -259,15 +255,9 @@ skills-lock.json
 !.claude/skills/design-system-ui/
 !.claude/skills/aws-naming/
 !.claude/skills/github-access/
-!.claude/skills/short-form-ad/
 
 # Local scratch space — never git.
 tmp/
-
-# Microsoft.Testing.Platform writes a run directory next to the solution. `dotnet
-# test Humbugg.slnx` is the exact command CI runs, so anyone verifying locally the
-# way CI does produces this.
-humbugg/backend/test-results/
 
 # Terraform packages Lambda zips at plan time; build artifacts, not source.
 .terraform-build/

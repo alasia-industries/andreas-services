@@ -96,8 +96,16 @@ same source, so if the CLI authenticates, Terraform does.
 
 | Directory | Purpose | Stack |
 |-----------|---------|-------|
-| `humbugg/` | Gift-exchange platform | ASP.NET Core 10 (C# 14) + React/Vite (marketing, `www`) + Expo/Expo Router (product app, `app`) + Lambda (Docker) + DynamoDB |
+| `classroom/` | Classroom app | Flask + React/Vite |
+| `website/` | `www.andreas.services` | Flask + React Router/Vite |
+| `mailer/` | Shared transactional mail API (SES) — Humbugg's too | Python Lambda |
 | `infra/` | Shared infrastructure | Terraform |
+
+**Humbugg lives in its own repo** — `ansavva/humbugg`, checked out at `~/repos/humbugg`
+— since 2026-09-30. It still depends on `mailer/`, the Terraform state bucket and
+the CI OIDC role in `infra/envs/shared` (whose trust lists `repo:ansavva/humbugg:*`
+via `extra_github_repos`). Changing any of those can break Humbugg's deploy, and
+no workflow here reruns it: dispatch `humbugg-prod.yaml` in that repo afterwards.
 
 ## Shared Infrastructure (`infra/`)
 
@@ -134,8 +142,7 @@ data "aws_route53_zone" "main" {
   adding or changing any screen, form, dialog or styled component** — it covers the catalogue, the
   platform-leaf import rule, and the theming seams that carry each service's brand.
 - **Build tool**: Vite (not Create React App) for web surfaces. **Expo + Metro** for
-  React Native surfaces — `humbugg/app` is the first, built so the same codebase can
-  ship to the app stores later. The bundler is what selects the design system's
+  React Native surfaces (Humbugg's app, in its own repo). The bundler is what selects the design system's
   platform leaf, so this choice is not cosmetic.
 - **Framework**: React 18
 - **Styling**: Tailwind CSS (v3 or v4) on Vite surfaces. Expo surfaces have **no
@@ -167,7 +174,7 @@ data "aws_route53_zone" "main" {
 - **Pattern**: controllers → services → DynamoDB repositories
 - **Auth**: AWS Cognito access-token validation (SRP via Amplify Auth on the SPA)
 - **DB access**: DynamoDB via the AWS SDK for .NET (no ORM, no VPC needed)
-- **Note**: Humbugg was migrated from Python/Flask to ASP.NET Core — it is no longer a Python service. See `humbugg/CLAUDE.md` for details.
+- **Note**: Humbugg now lives in its own repo (`ansavva/humbugg`); see its `CLAUDE.md`.
 
 ### Backend (Lambda-only Python services)
 - **Language**: Python 3.11

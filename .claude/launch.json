@@ -40,46 +40,6 @@
       ],
       "port": 3000,
       "autoPort": false
-    },
-    {
-      "name": "humbugg-backend",
-      "runtimeExecutable": "/bin/bash",
-      "runtimeArgs": [
-        "-c",
-        "exec ./humbugg/scripts/dev-up-backend.sh"
-      ],
-      "port": 5001,
-      "autoPort": false
-    },
-    {
-      "name": "humbugg-marketing",
-      "runtimeExecutable": "/bin/bash",
-      "runtimeArgs": [
-        "-c",
-        "unset PORT; exec ./humbugg/scripts/dev-up-marketing.sh"
-      ],
-      "port": 5176,
-      "autoPort": false
-    },
-    {
-      "name": "humbugg-app",
-      "runtimeExecutable": "/bin/bash",
-      "runtimeArgs": [
-        "-c",
-        "exec ./humbugg/scripts/dev-up-app.sh --web"
-      ],
-      "port": 8081,
-      "autoPort": false
-    },
-    {
-      "name": "humbugg-app-stubbed",
-      "runtimeExecutable": "/bin/bash",
-      "runtimeArgs": [
-        "-c",
-        "cd humbugg/app && EXPO_PUBLIC_API_BASE_URL=/api EXPO_PUBLIC_COGNITO_CLIENT_ID=e2e-fake-client EXPO_PUBLIC_COGNITO_DOMAIN=e2e-fake.auth.us-east-1.amazoncognito.com npx expo export -p web --output-dir dist-e2e --clear && exec npx serve -s dist-e2e -l 4174 --no-clipboard"
-      ],
-      "port": 4174,
-      "autoPort": false
     }
   ]
 }
