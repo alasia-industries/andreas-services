@@ -327,6 +327,10 @@ data "aws_iam_policy_document" "github_actions_permissions" {
       "ssm:DeleteParameter",
       "ssm:GetParameter",
       "ssm:GetParameters",
+      # Humbugg's deploy reads every hand-set value under /humbugg/prod/config/
+      # in one call — Terraform's `aws_ssm_parameters_by_path` and
+      # scripts/ci-prod-config.sh (ansavva/humbugg#1, October 2026).
+      "ssm:GetParametersByPath",
       "ssm:ListTagsForResource",
       "ssm:PutParameter",
       "ssm:RemoveTagsFromResource",
