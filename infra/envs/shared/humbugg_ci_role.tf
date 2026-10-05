@@ -384,6 +384,33 @@ data "aws_iam_policy_document" "humbugg_ci_edge" {
     resources = ["*"]
   }
 
+  # WAF web ACLs in front of the Cognito pool (REGIONAL) and the CloudFront
+  # distributions (CLOUDFRONT). ACL ARNs carry the name, so this one scopes.
+  statement {
+    sid     = "WafAcls"
+    effect  = "Allow"
+    actions = ["wafv2:*"]
+    resources = [
+      "arn:aws:wafv2:*:*:regional/webacl/${local.humbugg_prefix}-*/*",
+      "arn:aws:wafv2:*:*:global/webacl/${local.humbugg_prefix}-*/*",
+      "arn:aws:wafv2:*:*:regional/managedruleset/*/*",
+      "arn:aws:wafv2:*:*:global/managedruleset/*/*",
+    ]
+  }
+
+  statement {
+    sid    = "WafRead"
+    effect = "Allow"
+    actions = [
+      "wafv2:CheckCapacity",
+      "wafv2:DescribeManagedRuleGroup",
+      "wafv2:GetWebACLForResource",
+      "wafv2:ListAvailableManagedRuleGroups",
+      "wafv2:ListWebACLs",
+    ]
+    resources = ["*"]
+  }
+
   statement {
     sid    = "Certificates"
     effect = "Allow"
