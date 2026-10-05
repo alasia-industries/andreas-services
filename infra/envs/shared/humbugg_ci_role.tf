@@ -151,18 +151,22 @@ data "aws_iam_policy_document" "humbugg_workload_boundary" {
     resources = ["*"]
   }
 
-  # Account directory (AdminGetUser) and the pre-sign-up linker. Pool ARNs are
-  # id-based; the tag keeps it to Humbugg's pools.
+  # Account directory (AdminGetUser), account deletion (AdminDeleteUser) and
+  # the pre-sign-up linker (AdminUserGlobalSignOut ends an untrusted native
+  # account's sessions before linking). Pool ARNs are id-based; the tag keeps
+  # it to Humbugg's pools.
   statement {
     sid    = "Cognito"
     effect = "Allow"
     actions = [
       "cognito-idp:AdminConfirmSignUp",
       "cognito-idp:AdminCreateUser",
+      "cognito-idp:AdminDeleteUser",
       "cognito-idp:AdminGetUser",
       "cognito-idp:AdminLinkProviderForUser",
       "cognito-idp:AdminSetUserPassword",
       "cognito-idp:AdminUpdateUserAttributes",
+      "cognito-idp:AdminUserGlobalSignOut",
       "cognito-idp:ListUsers",
     ]
     resources = ["*"]
