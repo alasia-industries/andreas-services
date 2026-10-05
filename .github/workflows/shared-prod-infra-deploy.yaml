@@ -31,7 +31,7 @@ jobs:
       - name: Set up Terraform
         uses: hashicorp/setup-terraform@v4
         with:
-          terraform_version: '~1.5'
+          terraform_version: '~1.16'
 
       - name: Configure AWS credentials
         uses: aws-actions/configure-aws-credentials@v6
@@ -45,4 +45,7 @@ jobs:
 
       - name: Terraform Apply
         working-directory: ${{ env.TF_DIR }}
+        env:
+          # Cost-alert subscriber (cost_guardrails.tf). Unset = topic without a subscription.
+          TF_VAR_alert_email: ${{ secrets.ALERT_EMAIL }}
         run: terraform apply -auto-approve -input=false

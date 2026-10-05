@@ -28,7 +28,7 @@ jobs:
       - name: Set up Terraform
         uses: hashicorp/setup-terraform@v4
         with:
-          terraform_version: '~1.0'
+          terraform_version: '~1.16'
 
       - name: Setup tflint
         uses: terraform-linters/setup-tflint@v6
@@ -58,6 +58,9 @@ jobs:
       - name: Terraform Plan
         id: plan
         working-directory: ${{ env.TF_DIR }}
+        env:
+          # Cost-alert subscriber (cost_guardrails.tf). Unset = topic without a subscription.
+          TF_VAR_alert_email: ${{ secrets.ALERT_EMAIL }}
         run: |
           terraform plan -input=false -no-color -out=tfplan 2>&1 | tee /tmp/plan-output.txt
           echo "exit_code=${PIPESTATUS[0]}" >> "$GITHUB_OUTPUT"

@@ -263,6 +263,39 @@ data "aws_iam_policy_document" "github_actions_permissions" {
     resources = ["*"]
   }
 
+  # Budgets + Cost Anomaly Detection — the account cost guardrails in
+  # cost_guardrails.tf. Neither supports useful resource scoping for a single
+  # account-owned budget/monitor.
+  statement {
+    effect = "Allow"
+    actions = [
+      "budgets:ViewBudget",
+      "budgets:ModifyBudget",
+      "budgets:ListTagsForResource",
+      "budgets:TagResource",
+      "budgets:UntagResource",
+    ]
+    resources = ["arn:aws:budgets::*:budget/platform-shared-*"]
+  }
+
+  statement {
+    effect = "Allow"
+    actions = [
+      "ce:CreateAnomalyMonitor",
+      "ce:GetAnomalyMonitors",
+      "ce:UpdateAnomalyMonitor",
+      "ce:DeleteAnomalyMonitor",
+      "ce:CreateAnomalySubscription",
+      "ce:GetAnomalySubscriptions",
+      "ce:UpdateAnomalySubscription",
+      "ce:DeleteAnomalySubscription",
+      "ce:ListTagsForResource",
+      "ce:TagResource",
+      "ce:UntagResource",
+    ]
+    resources = ["*"]
+  }
+
   # IAM — creating Lambda execution roles via CloudFormation/Terraform
   statement {
     effect = "Allow"
