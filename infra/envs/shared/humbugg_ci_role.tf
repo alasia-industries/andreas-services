@@ -106,8 +106,6 @@ data "aws_iam_policy_document" "humbugg_workload_boundary" {
       "dynamodb:PutItem",
       "dynamodb:Query",
       "dynamodb:Scan",
-      "dynamodb:TransactGetItems",
-      "dynamodb:TransactWriteItems",
       "dynamodb:UpdateItem",
     ]
     resources = ["arn:aws:dynamodb:*:*:table/${local.humbugg_prefix}-*"]
