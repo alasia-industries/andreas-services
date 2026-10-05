@@ -129,10 +129,19 @@ data "aws_iam_policy_document" "github_actions_trust" {
       values   = ["sts.amazonaws.com"]
     }
 
+    # andreas-services: every job that assumes this role runs in a GitHub
+    # environment (shared-infra, <service>-production), so only environment
+    # subjects are trusted — a bare branch or PR job cannot assume it.
+    # Extra repos keep `:*` until they move to their own role (Humbugg:
+    # humbugg_ci_role.tf; drop it from extra_github_repos once its deploy uses
+    # that role).
     condition {
       test     = "StringLike"
       variable = "token.actions.githubusercontent.com:sub"
-      values   = [for repo in concat([var.github_repo], var.extra_github_repos) : "repo:${repo}:*"]
+      values = concat(
+        ["repo:${var.github_repo}:environment:*"],
+        [for repo in var.extra_github_repos : "repo:${repo}:*"],
+      )
     }
   }
 }

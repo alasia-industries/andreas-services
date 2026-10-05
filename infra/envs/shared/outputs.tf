@@ -22,3 +22,13 @@ output "github_actions_role_arn" {
   description = "IAM role ARN to use as AWS_ROLE_ARN in GitHub Actions environments"
   value       = aws_iam_role.github_actions.arn
 }
+
+output "humbugg_ci_role_arn" {
+  description = "Humbugg's own GitHub Actions role (AWS_ROLE_ARN in ansavva/humbugg humbugg-prod.yaml)"
+  value       = aws_iam_role.humbugg_ci.arn
+}
+
+output "humbugg_workload_boundary_arn" {
+  description = "Permissions boundary every Humbugg-created IAM role must carry"
+  value       = aws_iam_policy.humbugg_workload_boundary.arn
+}
